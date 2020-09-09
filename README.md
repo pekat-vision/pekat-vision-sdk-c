@@ -5,6 +5,7 @@ A simple ANSI C library for communication with PEKAT VISION for Linux and Window
 ## Requirements
 
 * On Linux libCURL at least 7.62.0
+* PEKAT VISION 3.10.2 or higher
 
 ## Installation
 
