@@ -82,3 +82,20 @@ pv_analyzer *analyzer = pv_clone_analyzer(orig);
 ```
 
 Note however, that you will need to set up CURL for threading manually before using this SDK.
+
+### Multiple cameras
+
+```c
+/* create local analyzer */
+pv_analyzer *analyzer_camera_1 = pv_create_local_analyzer("/pekat_vision", "/home/peter/PekatVisionProjects/camera_1", "", NULL);
+pv_analyzer *analyzer_camera_2 = pv_create_local_analyzer("/pekat_vision", "/home/peter/PekatVisionProjects/camera_2", "", NULL);
+pv_analyzer *analyzer_camera_3 = pv_create_local_analyzer("/pekat_vision", "/home/peter/PekatVisionProjects/camera_3", "", NULL);
+
+/* analyze - loop */
+pv_analyze_image(analyzer_camera_1, buffer, len, PVRT_CONTEXT, NULL);
+char *res_context_camera_1 = pv_get_result_context(analyzer_camera_1);
+pv_analyze_image(analyzer_camera_2, buffer, len, PVRT_CONTEXT, NULL);
+char *res_context_camera_2 = pv_get_result_context(analyzer_camera_2);
+pv_analyze_image(analyzer_camera_3, buffer, len, PVRT_CONTEXT, NULL);
+char *res_context_camera_3 = pv_get_result_context(analyzer_camera_3);
+```
