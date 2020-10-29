@@ -72,8 +72,10 @@ pv_free_analyzer(analyzer);
 You can also connect to already running server using:
 
 ```c
-pv_analyzer *analyzer = pv_create_remote_analyzer("host", 1234 /* port */, "optional api key");
+pv_analyzer *analyzer = pv_create_remote_analyzer("192.168.1.10", 1234 /* port */, "optional api key");
 ```
+
+Remote analyzer enables you to connect to a remotely running PEKAT VISION. It is possible to connect from multiple PCs simultaneously. PEKAT VISION behaves as a server automatically.
 
 Analyzer is not thread safe (you cannot run two analyses simultaneously). To overcome this issue, you can create clone of existing analyzer:
 
