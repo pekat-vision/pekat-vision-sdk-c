@@ -87,6 +87,8 @@ void pv_free_analyzer(pv_analyzer *analyzer) {
         res = curl_easy_setopt(curl, CURLOPT_CURLU, analyzer->url);
         if (res)
             goto after_send;
+        /* prevent printing response to stdout - default behavior */
+        curl_easy_setopt(curl, CURLOPT_NOBODY, 1);
         /* send to server */
         res = curl_easy_perform(curl);
         if (res)
@@ -180,6 +182,9 @@ static int wait_server_start(pv_analyzer *analyzer) {
     resu = curl_url_set(analyzer->url, CURLUPART_PATH, "/ping", 0);
     if (resu)
         return -1;
+
+    /* prevent printing response to stdout - default behavior */
+    curl_easy_setopt(analyzer->curl, CURLOPT_NOBODY, 1);
 
     /* wait for server start */
     for (int i = 0; i < START_WAIT_TIME; i++) {
@@ -500,7 +505,7 @@ static size_t header_callback(char *buffer, size_t size, size_t nitems, void *us
 /* must be in sync with response_type enum */
 static char *response_types[] = { "response_type=context", "response_type=annotated_image", "response_type=heatmap" };
 
-int pv_analyze_image(pv_analyzer *analyzer, const char *image, int len, pv_result_type result_type, const char *data) {
+static int pv_analyze_image_impl(pv_analyzer *analyzer, const char *image, int len, pv_result_type result_type, const char *data, const char *path, const char *width, const char *height) {
     CURLcode res;
     CURLUcode resu;
     struct curl_slist *headers;
@@ -510,7 +515,7 @@ int pv_analyze_image(pv_analyzer *analyzer, const char *image, int len, pv_resul
     analyzer->curlu_code = CURLUE_OK;
 
     /* path */
-    resu = curl_url_set(analyzer->url, CURLUPART_PATH, "/analyze_image", 0);
+    resu = curl_url_set(analyzer->url, CURLUPART_PATH, path, 0);
     if (resu)
         goto failed_url;
     /* remove query */
@@ -524,6 +529,18 @@ int pv_analyze_image(pv_analyzer *analyzer, const char *image, int len, pv_resul
     /* api key */
     if (analyzer->api_key) {
         resu = curl_url_set(analyzer->url, CURLUPART_QUERY, analyzer->api_key, CURLU_URLENCODE | CURLU_APPENDQUERY);
+        if (resu)
+            goto failed_url;
+    }
+    /* width */
+    if (width) {
+        resu = curl_url_set(analyzer->url, CURLUPART_QUERY, width, CURLU_URLENCODE | CURLU_APPENDQUERY);
+        if (resu)
+            goto failed_url;
+    }
+    /* height */
+    if (height) {
+        resu = curl_url_set(analyzer->url, CURLUPART_QUERY, height, CURLU_URLENCODE | CURLU_APPENDQUERY);
         if (resu)
             goto failed_url;
     }
@@ -621,6 +638,18 @@ failed_curl:
 failed_url:
     analyzer->curlu_code = resu;
     return PVR_CURLU;
+}
+
+int pv_analyze_raw_image(pv_analyzer *analyzer, const char *image, int width, int height, pv_result_type result_type, const char *data) {
+    char w[32];
+    char h[32];
+    sprintf(w, "width=%d", width);
+    sprintf(h, "height=%d", height);
+    return pv_analyze_image_impl(analyzer, image, width * height * 3, result_type, data, "/analyze_raw_image", w, h);
+}
+
+int pv_analyze_image(pv_analyzer *analyzer, const char *image, int len, pv_result_type result_type, const char *data) {
+    return pv_analyze_image_impl(analyzer, image, len, result_type, data, "/analyze_image", NULL, NULL);
 }
 
 char *pv_get_result_data(pv_analyzer *analyzer) {

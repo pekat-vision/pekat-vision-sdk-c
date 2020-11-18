@@ -52,8 +52,8 @@ int res = pv_analyze_image(analyzer, image, image_size, PVRT_HEATMAP, NULL);
 if (res) {
     /* failed */
 } else {
-    char *res_image = pv_get_result_data(analyzer)
-    int *res_size = pv_get_result_data_size(analyzer)
+    char *res_image = pv_get_result_data(analyzer);
+    int res_size = pv_get_result_data_size(analyzer);
     char *res_context = pv_get_result_context(analyzer);
 }
 ```
@@ -62,6 +62,12 @@ You pass buffer with PNG image inside and its length. The image is used only dur
 The last parameter is for additional data (string).
 
 Returned values are kept inside analyzer and will be invalidated by next call to `pv_analyze_image()`.
+
+You can also pass raw image data (width * height * 3 bytes):
+
+```c
+int res = pv_analyze_raw_image(analyzer, image, width, height, PVRT_HEATMAP, NULL);
+```
 
 At the end you have to remove the analyzer. This will also destroy the server.
 

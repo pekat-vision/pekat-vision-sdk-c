@@ -433,7 +433,7 @@ static char* base64_decode(wchar_t* buffer) {
 /* must be in sync with response_type enum */
 static wchar_t* response_types[] = { L"context", L"annotated_image", L"heatmap" };
 
-int pv_analyze_image(pv_analyzer* analyzer, const char* image, int len, pv_result_type result_type, const char* data) {
+int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_result_type result_type, const char* data, const wchar_t* _path, const wchar_t* dim) {
     HINTERNET hRequest = 0;
     wchar_t* path = NULL;
     int error = 0;
@@ -447,8 +447,14 @@ int pv_analyze_image(pv_analyzer* analyzer, const char* image, int len, pv_resul
     /* get path and query length */
     /* base size for path, response type and other potential param names */
     size_t l = 70;
+    /* path */
+    l += wcslen(_path);
     /* api_key */
     l += analyzer->api_key ? wcslen(analyzer->api_key) : 0;
+    /* dimensions */
+    if (dim) {
+        l += wcslen(dim);
+    }
     /* data */
     if (data) {
         l += get_url_encoded_len(data);
@@ -458,11 +464,15 @@ int pv_analyze_image(pv_analyzer* analyzer, const char* image, int len, pv_resul
     if (!path)
         return PVR_NOMEM;
     *path = 0;
-    int append_res = append_wide(path, l, L"/analyze_image?response_type=");
+    int append_res = append_wide(path, l, _path);
+    append_res |= append_wide(path, l, L"?response_type=");
     append_res |= append_wide(path, l, response_types[result_type]);
     if (analyzer->api_key) {
         append_res |= append_wide(path, l, L"&api_key=");
         append_res |= append_wide(path, l, analyzer->api_key);
+    }
+    if (dim) {
+        append_res |= append_wide(path, l, dim);
     }
     if (data) {
         append_res |= append_wide(path, l, L"&data=");
@@ -580,6 +590,16 @@ error:
     if (path)
         free(path);
     return error;
+}
+
+int pv_analyze_raw_image(pv_analyzer *analyzer, const char *image, int width, int height, pv_result_type result_type, const char *data) {
+    wchar_t dim[50];
+    swprintf_s(dim, sizeof(dim) / sizeof(wchar_t), L"&width=%d&height=%d", width, height);
+    return pv_analyze_image_impl(analyzer, image, width * height * 3, result_type, data, L"/analyze_raw_image", dim);
+}
+
+int pv_analyze_image(pv_analyzer *analyzer, const char *image, int len, pv_result_type result_type, const char *data) {
+    return pv_analyze_image_impl(analyzer, image, len, result_type, data, L"/analyze_image", NULL);
 }
 
 char* pv_get_result_data(pv_analyzer* analyzer) {
