@@ -29,7 +29,7 @@
 #define EXE_EXT ""
 #endif
 
-#define SERVER_PATH (PATH_SEP "starter" PATH_SEP "pekat_vision" EXE_EXT)
+#define SERVER_PATH (PATH_SEP "starter" PATH_SEP "pekat-vision" EXE_EXT)
 
 /* todo: how long? */
 /* in tenths of second (10 == 1 sec) */
