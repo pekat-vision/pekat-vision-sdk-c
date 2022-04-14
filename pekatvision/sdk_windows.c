@@ -16,7 +16,7 @@
 /* enable socket lib */
 #pragma comment(lib,"Ws2_32.lib")
 
-#define SERVER_PATH "\\starter\\pekat-vision.exe"
+#define SERVER_PATH "\\starter\\pekat_vision.exe"
 
 /* in tenths of second (10 == 1 sec) but it looks like each connect attempt takes at least 2 seconds */
 #define START_WAIT_TIME 8
