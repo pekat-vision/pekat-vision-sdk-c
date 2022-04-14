@@ -3,7 +3,7 @@
 /* A .NET module for communication with PEKAT VISION 3.10.2 and higher */
 /*                                                                     */
 /* Author: developers@pekatvision.com                                  */
-/* Date:   21 December 2021                                            */
+/* Date:   7 May 2020                                                  */
 /* Web:    https://github.com/pekat-vision                             */
 
 #ifndef PEKAT_VISION_SDK

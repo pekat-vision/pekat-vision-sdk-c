@@ -3,7 +3,7 @@
 /* A .NET module for communication with PEKAT VISION 3.10.2 and higher */
 /*                                                                     */
 /* Author: developers@pekatvision.com                                  */
-/* Date:   21 December 2021                                            */
+/* Date:   7 May 2020                                                  */
 /* Web:    https://github.com/pekat-vision                             */
 
 #include "sdk.h"
@@ -16,7 +16,7 @@
 /* enable socket lib */
 #pragma comment(lib,"Ws2_32.lib")
 
-#define SERVER_PATH "\\starter\\pekat_vision.exe"
+#define SERVER_PATH "\\pekat_vision\\pekat_vision.exe"
 
 /* in tenths of second (10 == 1 sec) but it looks like each connect attempt takes at least 2 seconds */
 #define START_WAIT_TIME 8
@@ -261,7 +261,6 @@ static int find_port() {
 }
 
 pv_analyzer* pv_create_local_analyzer(const char* dist_path, const char* project_path, const char* api_key, char* const argv[]) {
-    const char localhost[] = "127.0.0.1";
     /* detect port */
     int port = find_port();
     if (port == -1)
@@ -279,11 +278,11 @@ pv_analyzer* pv_create_local_analyzer(const char* dist_path, const char* project
     /* generate stop key */
     srand((unsigned int)time(NULL));
     int stop_key = rand();
-    snprintf(cmdline, len, "\"%s%s\" start --data \"%s\" --host %s --port %d --stop_key %d", dist_path, SERVER_PATH, project_path, localhost, port, stop_key);
+    snprintf(cmdline, len, "\"%s%s\" -data \"%s\" -host localhost -port %d -stop_key %d", dist_path, SERVER_PATH, project_path, port, stop_key);
     size_t pos = strlen(cmdline);
     len -= pos;
     if (api_key) {
-        snprintf(cmdline + pos, len, " --api_key \"%s\"", api_key);
+        snprintf(cmdline + pos, len, " -api_key \"%s\"", api_key);
         pos = strlen(cmdline);
         len -= pos;
     }
@@ -296,7 +295,7 @@ pv_analyzer* pv_create_local_analyzer(const char* dist_path, const char* project
     }
 
     /* allocate analyzer before exec so we don't have to kill process when alloc fails */
-    pv_analyzer *analyzer = alloc_analyzer(localhost, port, api_key);
+    pv_analyzer *analyzer = alloc_analyzer("localhost", port, api_key);
     if (!analyzer) {
         free(cmdline);
         return NULL;

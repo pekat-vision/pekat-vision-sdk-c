@@ -1,6 +1,6 @@
 /* PEKAT VISION api                                                    */
 /*                                                                     */
-/* A .NET module for communication with PEKAT VISION 3.12.0 and higher */
+/* A .NET module for communication with PEKAT VISION 3.10.2 and higher */
 /*                                                                     */
 /* Author: developers@pekatvision.com                                  */
 /* Date:   7 May 2020                                                  */
@@ -29,7 +29,7 @@
 #define EXE_EXT ""
 #endif
 
-#define SERVER_PATH (PATH_SEP "starter" PATH_SEP "pekat_vision" EXE_EXT)
+#define SERVER_PATH (PATH_SEP "pekat_vision" PATH_SEP "pekat_vision" EXE_EXT)
 
 /* todo: how long? */
 /* in tenths of second (10 == 1 sec) */
@@ -247,7 +247,6 @@ pv_analyzer *pv_create_local_analyzer(const char *dist_path, const char *project
     int port, stop_key, argc;
     pid_t pid;
     pv_analyzer *analyzer;
-    const char localhost[] = "127.0.0.1";
 
     /* detect port */
     port = find_port();
@@ -266,8 +265,8 @@ pv_analyzer *pv_create_local_analyzer(const char *dist_path, const char *project
     strcat(strcpy(exe, dist_path), SERVER_PATH);
 
     /* prepare arguments */
-    /* count: exe path, start, project (2x), host (2x), port (2x), stop key (2x), terminating NULL */
-    argc = 11;
+    /* count: exe path, project (2x), host (2x), port (2x), stop key (2x), terminating NULL */
+    argc = 10;
     if (api_key)
         argc += 2;
     if (argv) {
@@ -279,18 +278,17 @@ pv_analyzer *pv_create_local_analyzer(const char *dist_path, const char *project
         return NULL;
     }
     args[0] = exe;
-    args[1] = "start";
-    args[2] = "--data";
-    args[3] = project_path;
-    args[4] = "--host";
-    args[5] = localhost;
-    args[6] = "--port";
-    args[7] = port_str;
-    args[8] = "--stop_key";
-    args[9] = stop;
-    argc = 10;
+    args[1] = "-data";
+    args[2] = project_path;
+    args[3] = "-host";
+    args[4] = "localhost";
+    args[5] = "-port";
+    args[6] = port_str;
+    args[7] = "-stop_key";
+    args[8] = stop;
+    argc = 9;
     if (api_key) {
-        args[argc++] = "--api_key";
+        args[argc++] = "-api_key";
         args[argc++] = api_key;
     }
     if (argv) {
@@ -300,7 +298,7 @@ pv_analyzer *pv_create_local_analyzer(const char *dist_path, const char *project
     }
 
     /* allocate analyzer before exec so we don't have to kill process when alloc fails */
-    analyzer = alloc_analyzer(localhost, port, api_key);
+    analyzer = alloc_analyzer("localhost", port, api_key);
     if (!analyzer) {
         free(exe);
         free(args);
