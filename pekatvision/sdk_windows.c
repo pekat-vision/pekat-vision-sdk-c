@@ -637,7 +637,19 @@ int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_
         } while (read > 0);
         analyzer->response_size = pos;
 
-        if (result_type != PVRT_CONTEXT) {
+        if (result_type == PVRT_CONTEXT) {
+            /* move data into context */
+            if (analyzer->response_context)
+                free(analyzer->response_context);
+            analyzer->response_context = realloc(analyzer->response_data, analyzer->response_size + 1);
+            if (analyzer->response_context) {
+                /* realloc passed - remove from data and terminate */
+                analyzer->response_context[analyzer->response_size] = 0;
+                analyzer->response_data = NULL;
+                analyzer->response_size = 0;
+                analyzer->response_limit = 0;
+            } /* else failed - keep as is - context null, data set */
+        } else {
             int context_len;
             int image_len = get_image_len(hRequest);
             context_len = analyzer->response_size - image_len;
@@ -659,18 +671,6 @@ int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_
                 analyzer->response_size = image_len;
                 analyzer->response_limit = 0;
             }
-        } else {
-            /* move data into context */
-            if (analyzer->response_context)
-                free(analyzer->response_context);
-            analyzer->response_context = realloc(analyzer->response_data, analyzer->response_size + 1);
-            if (analyzer->response_context) {
-                /* realloc passed - remove from data and terminate */
-                analyzer->response_context[analyzer->response_size] = 0;
-                analyzer->response_data = NULL;
-                analyzer->response_size = 0;
-                analyzer->response_limit = 0;
-            } /* else failed - keep as is - context null, data set */
         }
     }
 
@@ -707,7 +707,7 @@ int get_image_len(HINTERNET hRequest) {
             return PVR_NOMEM;
         }
         for (int i = 0; i < new_size; i++) {
-            image_len_chars[i] = image_len_chars_couples[i];
+            image_len_chars[i] = (UCHAR) image_len_chars_couples[i];
         }
         image_len = atoi(image_len_chars);
         free(image_len_chars);
