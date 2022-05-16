@@ -519,136 +519,78 @@ int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_
         goto error;
     }
 
-    if (!analyzer->context_in_body) {
-        /* get context from header */
-        WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CUSTOM, CONTEXT_HEADER, WINHTTP_NO_OUTPUT_BUFFER, &size, WINHTTP_NO_HEADER_INDEX);
-        if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-            wchar_t *context = malloc(size);
-            if (!context) {
+    /* preallocate data buffer according to content length */
+    DWORD contentLen;
+    size = sizeof(contentLen);
+    if (WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &contentLen, &size, WINHTTP_NO_HEADER_INDEX)) {
+    /* content length read, adjust buffer as needed */
+        if (analyzer->response_limit < contentLen) {
+            if (analyzer->response_data)
+                free(analyzer->response_data);
+            analyzer->response_size = 0;
+            analyzer->response_data = malloc(contentLen);
+            if (!analyzer->response_data) {
+                analyzer->response_limit = 0;
                 error = PVR_NOMEM;
                 goto error;
             }
-            if (WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CUSTOM, CONTEXT_HEADER, context, &size, WINHTTP_NO_HEADER_INDEX)) {
-                analyzer->response_context = base64_decode(context);
-            }
-            free(context);
+            analyzer->response_limit = contentLen;
         }
-        
-        /* otherwise ignore error and continue without context */
+    }
 
-        /* preallocate data buffer according to content length */
-        DWORD contentLen;
-        size = sizeof(contentLen);
-        if (WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &contentLen, &size, WINHTTP_NO_HEADER_INDEX)) {
-        /* content length read, adjust buffer as needed */
-            if (analyzer->response_limit < contentLen) {
-                if (analyzer->response_data)
-                    free(analyzer->response_data);
-                analyzer->response_size = 0;
-                analyzer->response_data = malloc(contentLen);
-                if (!analyzer->response_data) {
-                    analyzer->response_limit = 0;
-                    error = PVR_NOMEM;
-                    goto error;
-                }
-                analyzer->response_limit = contentLen;
-            }
-        }
+    /* read data */
+    DWORD pos = 0;
+    DWORD read;
+    do {
+        if (!WinHttpQueryDataAvailable(hRequest, &size))
+            goto error;
 
-        /* read data */
-        DWORD pos = 0;
-        DWORD read;
-        do {
-            if (!WinHttpQueryDataAvailable(hRequest, &size))
-                goto error;
-
-            DWORD new_pos = pos + size;
-            if (new_pos > analyzer->response_limit) {
-                /* resize needed */
-                char* new_data = realloc(analyzer->response_data, new_pos);
-                if (!new_data) {
-                    error = PVR_NOMEM;
-                    goto error;
-                }
-                analyzer->response_data = new_data;
-                analyzer->response_limit = new_pos;
-            }
-            if (!WinHttpReadData(hRequest, (LPVOID)(analyzer->response_data + pos), size, &read)) {
+        DWORD new_pos = pos + size;
+        if (new_pos > analyzer->response_limit) {
+            /* resize needed */
+            char* new_data = realloc(analyzer->response_data, new_pos);
+            if (!new_data) {
+                error = PVR_NOMEM;
                 goto error;
             }
-            pos += read;
-        } while (read > 0);
-        analyzer->response_size = pos;
+            analyzer->response_data = new_data;
+            analyzer->response_limit = new_pos;
+        }
+        if (!WinHttpReadData(hRequest, (LPVOID)(analyzer->response_data + pos), size, &read)) {
+            goto error;
+        }
+        pos += read;
+    } while (read > 0);
+    analyzer->response_size = pos;
 
-        if (result_type == PVRT_CONTEXT) {
-            /* move data into context */
-            if (analyzer->response_context)
-                free(analyzer->response_context);
-            analyzer->response_context = realloc(analyzer->response_data, analyzer->response_size + 1);
-            if (analyzer->response_context) {
-                /* realloc passed - remove from data and terminate */
-                analyzer->response_context[analyzer->response_size] = 0;
-                analyzer->response_data = NULL;
-                analyzer->response_size = 0;
-                analyzer->response_limit = 0;
-            } /* else failed - keep as is - context null, data set */
+    if (result_type == PVRT_CONTEXT) {
+        /* move data into context */
+        if (analyzer->response_context)
+            free(analyzer->response_context);
+        analyzer->response_context = realloc(analyzer->response_data, analyzer->response_size + 1);
+        if (analyzer->response_context) {
+            /* realloc passed - remove from data and terminate */
+            analyzer->response_context[analyzer->response_size] = 0;
+            analyzer->response_data = NULL;
+            analyzer->response_size = 0;
+            analyzer->response_limit = 0;
         }
     } else {
-        DWORD contentLen;
-        size = sizeof(contentLen);
-        if (WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &contentLen, &size, WINHTTP_NO_HEADER_INDEX)) {
-            /* content length read, adjust buffer as needed */
-            if (analyzer->response_limit < contentLen) {
-                if (analyzer->response_data)
-                    free(analyzer->response_data);
-                analyzer->response_size = 0;
-                analyzer->response_data = malloc(contentLen);
-                if (!analyzer->response_data) {
-                    analyzer->response_limit = 0;
+        if (!analyzer->context_in_body) {
+            /* get context from header */
+            WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CUSTOM, CONTEXT_HEADER, WINHTTP_NO_OUTPUT_BUFFER, &size, WINHTTP_NO_HEADER_INDEX);
+            if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+                wchar_t *context = malloc(size);
+                if (!context) {
                     error = PVR_NOMEM;
                     goto error;
                 }
-                analyzer->response_limit = contentLen;
-            }
-        }
-
-        /* read data */
-        DWORD pos = 0;
-        DWORD read;
-        do {
-            if (!WinHttpQueryDataAvailable(hRequest, &size))
-                goto error;
-
-            DWORD new_pos = pos + size;
-            if (new_pos > analyzer->response_limit) {
-                /* resize needed */
-                char* new_data = realloc(analyzer->response_data, new_pos);
-                if (!new_data) {
-                    error = PVR_NOMEM;
-                    goto error;
+                if (WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CUSTOM, CONTEXT_HEADER, context, &size, WINHTTP_NO_HEADER_INDEX)) {
+                    analyzer->response_context = base64_decode(context);
                 }
-                analyzer->response_data = new_data;
-                analyzer->response_limit = new_pos;
+                free(context);
             }
-            if (!WinHttpReadData(hRequest, (LPVOID)(analyzer->response_data + pos), size, &read)) {
-                goto error;
-            }
-            pos += read;
-        } while (read > 0);
-        analyzer->response_size = pos;
-
-        if (result_type == PVRT_CONTEXT) {
-            /* move data into context */
-            if (analyzer->response_context)
-                free(analyzer->response_context);
-            analyzer->response_context = realloc(analyzer->response_data, analyzer->response_size + 1);
-            if (analyzer->response_context) {
-                /* realloc passed - remove from data and terminate */
-                analyzer->response_context[analyzer->response_size] = 0;
-                analyzer->response_data = NULL;
-                analyzer->response_size = 0;
-                analyzer->response_limit = 0;
-            } /* else failed - keep as is - context null, data set */
+            /* otherwise ignore error and continue without context */
         } else {
             int context_len;
             int image_len = get_image_len(hRequest);
@@ -659,13 +601,15 @@ int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_
             }
             analyzer->response_context = calloc(context_len + 1, sizeof(char));
             if (!analyzer->response_context) {
+                error = PVR_NOMEM;
                 goto error;
             }
             if (!memcpy(analyzer->response_context, analyzer->response_data + image_len, context_len)) {
+                error = PVR_NOMEM;
                 goto error;
             }
             if (analyzer->response_context) {
-                /* realloc passed - shorten data and terminate */
+                /* realloc passed - shorten and terminate data */
                 analyzer->response_context[context_len] = '\0';
                 analyzer->response_data[image_len] = '\0';
                 analyzer->response_size = image_len;
