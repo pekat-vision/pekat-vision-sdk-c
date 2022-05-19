@@ -3,7 +3,7 @@
 /* A .NET module for communication with PEKAT VISION 3.10.2 and higher */
 /*                                                                     */
 /* Author: developers@pekatvision.com                                  */
-/* Date:   7 May 2020                                                  */
+/* Date:   19 May 2022                                                 */
 /* Web:    https://github.com/pekat-vision                             */
 
 #include "sdk.h"
@@ -150,7 +150,7 @@ static pv_analyzer* alloc_analyzer(const char *host, int port, const char* api_k
     analyzer->response_size = 0;
     analyzer->response_limit = 0;
     analyzer->response_context = NULL;
-    analyzer->context_in_body = 1;
+    analyzer->context_in_body = 0;
 
     if (host) {
         int len = get_wide_len(host);
@@ -608,13 +608,9 @@ int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_
                 error = PVR_NOMEM;
                 goto error;
             }
-            if (analyzer->response_context) {
-                /* realloc passed - shorten and terminate data */
-                analyzer->response_context[context_len] = '\0';
-                analyzer->response_data[image_len] = '\0';
-                analyzer->response_size = image_len;
-                analyzer->response_limit = 0;
-            }
+            analyzer->response_context[context_len] = '\0';
+            analyzer->response_size = image_len;
+            analyzer->response_limit = 0;
         }
     }
 
