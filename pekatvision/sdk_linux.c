@@ -3,7 +3,7 @@
 /* A .NET module for communication with PEKAT VISION 3.10.2 and higher */
 /*                                                                     */
 /* Author: developers@pekatvision.com                                  */
-/* Date:   7 May 2020                                                  */
+/* Date:   19 May 2022                                                 */
 /* Web:    https://github.com/pekat-vision                             */
 
 #include <curl/curl.h>
@@ -38,6 +38,7 @@
 
 #define CONTEXT_HEADER "ContextBase64utf:"
 #define CONTENT_LENGTH_HEADER "Content-Length:"
+#define IMAGE_LEN_HEADER "ImageLen:"
 
 #define FROM_PORT 10000
 #define TO_PORT 30000
@@ -55,11 +56,13 @@ struct _pv_analyzer {
     const char *request_data;
     int request_len;
     int request_pos;
+    unsigned char context_in_body;
     /* following are filled in by response data */
     char *response_data;
     int response_limit;
     int response_pos;
     char *response_context;
+    int image_len;
 };
 
 void pv_free_analyzer(pv_analyzer *analyzer) {
@@ -143,7 +146,9 @@ static pv_analyzer *alloc_analyzer(const char *host, int port, const char *api_k
     analyzer->response_data = NULL;
     analyzer->response_limit = 0;
     analyzer->response_pos = 0;
+    analyzer->image_len = 0;
     analyzer->response_context = NULL;
+    analyzer->context_in_body = 0;
     if (!analyzer->url || !analyzer->curl)
         goto failed;
     if (api_key) {
@@ -281,7 +286,7 @@ pv_analyzer *pv_create_local_analyzer(const char *dist_path, const char *project
     args[1] = "-data";
     args[2] = project_path;
     args[3] = "-host";
-    args[4] = "localhost";
+    args[4] = "127.0.0.1";
     args[5] = "-port";
     args[6] = port_str;
     args[7] = "-stop_key";
@@ -298,7 +303,7 @@ pv_analyzer *pv_create_local_analyzer(const char *dist_path, const char *project
     }
 
     /* allocate analyzer before exec so we don't have to kill process when alloc fails */
-    analyzer = alloc_analyzer("localhost", port, api_key);
+    analyzer = alloc_analyzer("127.0.0.1", port, api_key);
     if (!analyzer) {
         free(exe);
         free(args);
@@ -408,7 +413,7 @@ static int check_header(char *buffer, int len, const char *header) {
     int hlen = strlen(header);
     if (len > hlen && !strncasecmp(buffer, header, hlen)) {
         for (int i = hlen; i < len; i++)
-            if (buffer[i] == '\r' || buffer[i] == 'n')
+            if (buffer[i] == '\r' || buffer[i] == '\n')
                 /* CR or LF - header end - treat as not found */
                 return 0;
             else if (buffer[i] != ' ')
@@ -416,6 +421,10 @@ static int check_header(char *buffer, int len, const char *header) {
                 return i;
     }
     return 0;
+}
+
+void pv_set_context_in_body(pv_analyzer *analyzer, unsigned char context_in_body) {
+    analyzer->context_in_body = context_in_body;
 }
 
 static int base64_table[] = {
@@ -499,6 +508,13 @@ static size_t header_callback(char *buffer, size_t size, size_t nitems, void *us
             analyzer->response_limit = analyzer->response_data ? l : 0;
         }
     }
+    i = check_header(buffer, len, IMAGE_LEN_HEADER);
+    if (i) {
+        int l = 0;
+        for (; i < len && buffer[i] >= '0' && buffer[i] <= '9'; i++)
+            l = l * 10 + buffer[i] - '0';
+        analyzer->image_len = l;
+    }
     return len;
 }
 
@@ -541,6 +557,12 @@ static int pv_analyze_image_impl(pv_analyzer *analyzer, const char *image, int l
     /* height */
     if (height) {
         resu = curl_url_set(analyzer->url, CURLUPART_QUERY, height, CURLU_URLENCODE | CURLU_APPENDQUERY);
+        if (resu)
+            goto failed_url;
+    }
+    /* context_in_body */
+    if (analyzer->context_in_body) {
+        resu = curl_url_set(analyzer->url, CURLUPART_QUERY, "context_in_body", CURLU_URLENCODE | CURLU_APPENDQUERY);
         if (resu)
             goto failed_url;
     }
@@ -627,6 +649,24 @@ static int pv_analyze_image_impl(pv_analyzer *analyzer, const char *image, int l
             analyzer->response_pos = 0;
             analyzer->response_limit = 0;
         } /* else failed - keep as is - context null, data set */
+    }
+    if (analyzer->context_in_body) {
+        int context_len = analyzer->response_pos - analyzer->image_len;
+        /* move context from body to analyzer and shorten data to contain only image */
+        if (analyzer->response_context) {
+            free(analyzer->response_context);
+        }
+        analyzer->response_context = calloc(context_len + 1, sizeof(char));
+        if (!analyzer->response_context) {
+            return PVR_NOMEM;
+        }
+        if (!memcpy(analyzer->response_context, analyzer->response_data + analyzer->image_len, context_len)) {
+            return PVR_NOMEM;
+        }
+        analyzer->response_context[context_len] = '\0';
+        analyzer->response_pos = analyzer->image_len;
+        analyzer->response_limit = 0;
+        analyzer->image_len = 0;
     }
 
     return PVR_OK;
