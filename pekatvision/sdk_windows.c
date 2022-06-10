@@ -3,7 +3,7 @@
 /* A .NET module for communication with PEKAT VISION 3.10.2 and higher */
 /*                                                                     */
 /* Author: developers@pekatvision.com                                  */
-/* Date:   7 May 2020                                                  */
+/* Date:   19 May 2022                                                 */
 /* Web:    https://github.com/pekat-vision                             */
 
 #include "sdk.h"
@@ -26,6 +26,9 @@
 
 #define USER_AGENT L"PekatVisionSDK"
 #define CONTEXT_HEADER L"ContextBase64utf"
+#define IMAGE_LEN_HEADER L"ImageLen"
+
+int get_image_len(HINTERNET hRequest);
 
 /* Get length of string in wide chars including terminating zero (how many needed to allocate for conversion). -1 on error */
 static int get_wide_len(const char *s) {
@@ -90,12 +93,17 @@ struct _pv_analyzer {
     HANDLE hProcess;
     int stop_key;
     wchar_t* api_key;
+    unsigned char context_in_body;
     /* following are filled in by response data */
     char* response_data;
     unsigned int response_size;
     unsigned int response_limit;
     char* response_context;
 };
+
+void pv_set_context_in_body(pv_analyzer *analyzer, unsigned char context_in_body) {
+    analyzer->context_in_body = context_in_body;
+}
 
 void pv_free_analyzer(pv_analyzer* analyzer) {
     if (analyzer->hProcess) {
@@ -142,6 +150,7 @@ static pv_analyzer* alloc_analyzer(const char *host, int port, const char* api_k
     analyzer->response_size = 0;
     analyzer->response_limit = 0;
     analyzer->response_context = NULL;
+    analyzer->context_in_body = 0;
 
     if (host) {
         int len = get_wide_len(host);
@@ -278,7 +287,7 @@ pv_analyzer* pv_create_local_analyzer(const char* dist_path, const char* project
     /* generate stop key */
     srand((unsigned int)time(NULL));
     int stop_key = rand();
-    snprintf(cmdline, len, "\"%s%s\" -data \"%s\" -host localhost -port %d -stop_key %d", dist_path, SERVER_PATH, project_path, port, stop_key);
+    snprintf(cmdline, len, "\"%s%s\" -data \"%s\" -host 127.0.0.1 -port %d -stop_key %d", dist_path, SERVER_PATH, project_path, port, stop_key);
     size_t pos = strlen(cmdline);
     len -= pos;
     if (api_key) {
@@ -295,7 +304,7 @@ pv_analyzer* pv_create_local_analyzer(const char* dist_path, const char* project
     }
 
     /* allocate analyzer before exec so we don't have to kill process when alloc fails */
-    pv_analyzer *analyzer = alloc_analyzer("localhost", port, api_key);
+    pv_analyzer *analyzer = alloc_analyzer("127.0.0.1", port, api_key);
     if (!analyzer) {
         free(cmdline);
         return NULL;
@@ -433,6 +442,8 @@ static char* base64_decode(wchar_t* buffer) {
 /* must be in sync with response_type enum */
 static wchar_t* response_types[] = { L"context", L"annotated_image", L"heatmap" };
 
+
+
 int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_result_type result_type, const char* data, const wchar_t* _path, const wchar_t* dim) {
     HINTERNET hRequest = 0;
     wchar_t* path = NULL;
@@ -474,6 +485,9 @@ int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_
     if (dim) {
         append_res |= append_wide(path, l, dim);
     }
+    if (analyzer->context_in_body != 0) {
+        append_res |= append_wide(path, l, L"&context_in_body");
+    }
     if (data) {
         append_res |= append_wide(path, l, L"&data=");
         url_encode(path + wcslen(path), data);
@@ -504,20 +518,6 @@ int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_
         error = status;
         goto error;
     }
-    /* get context from header */
-    WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CUSTOM, CONTEXT_HEADER, WINHTTP_NO_OUTPUT_BUFFER, &size, WINHTTP_NO_HEADER_INDEX);
-    if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-        wchar_t *context = malloc(size);
-        if (!context) {
-            error = PVR_NOMEM;
-            goto error;
-        }
-        if (WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CUSTOM, CONTEXT_HEADER, context, &size, WINHTTP_NO_HEADER_INDEX)) {
-            analyzer->response_context = base64_decode(context);
-        }
-        free(context);
-    }
-    /* otherwise ignore error and continue without context */
 
     /* preallocate data buffer according to content length */
     DWORD contentLen;
@@ -574,7 +574,44 @@ int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_
             analyzer->response_data = NULL;
             analyzer->response_size = 0;
             analyzer->response_limit = 0;
-        } /* else failed - keep as is - context null, data set */
+        }
+    } else {
+        if (!analyzer->context_in_body) {
+            /* get context from header */
+            WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CUSTOM, CONTEXT_HEADER, WINHTTP_NO_OUTPUT_BUFFER, &size, WINHTTP_NO_HEADER_INDEX);
+            if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+                wchar_t *context = malloc(size);
+                if (!context) {
+                    error = PVR_NOMEM;
+                    goto error;
+                }
+                if (WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CUSTOM, CONTEXT_HEADER, context, &size, WINHTTP_NO_HEADER_INDEX)) {
+                    analyzer->response_context = base64_decode(context);
+                }
+                free(context);
+            }
+            /* otherwise ignore error and continue without context */
+        } else {
+            int context_len;
+            int image_len = get_image_len(hRequest);
+            context_len = analyzer->response_size - image_len;
+            /* move context from body to analyzer and shorten data to contain only image */
+            if (analyzer->response_context) {
+                free(analyzer->response_context);
+            }
+            analyzer->response_context = calloc(context_len + 1, sizeof(char));
+            if (!analyzer->response_context) {
+                error = PVR_NOMEM;
+                goto error;
+            }
+            if (!memcpy(analyzer->response_context, analyzer->response_data + image_len, context_len)) {
+                error = PVR_NOMEM;
+                goto error;
+            }
+            analyzer->response_context[context_len] = '\0';
+            analyzer->response_size = image_len;
+            analyzer->response_limit = 0;
+        }
     }
 
     /* fall through cleanup with no error */
@@ -590,6 +627,33 @@ error:
     if (path)
         free(path);
     return error;
+}
+
+int get_image_len(HINTERNET hRequest) {
+    int image_len;
+    DWORD size;
+    WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CUSTOM, IMAGE_LEN_HEADER, WINHTTP_NO_OUTPUT_BUFFER, &size, WINHTTP_NO_HEADER_INDEX);
+    if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+        WORD *image_len_chars_couples = malloc(size);
+        if (!image_len_chars_couples) {
+            return PVR_NOMEM;
+        }
+        if (!WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CUSTOM, IMAGE_LEN_HEADER, image_len_chars_couples, &size, WINHTTP_NO_HEADER_INDEX)) {
+            return PVR_WINHTTP;
+        }
+        int new_size = size / sizeof(WORD);
+        UCHAR *image_len_chars = calloc(new_size + 1, sizeof(UCHAR));
+        if (!image_len_chars) {
+            return PVR_NOMEM;
+        }
+        for (int i = 0; i < new_size; i++) {
+            image_len_chars[i] = (UCHAR) image_len_chars_couples[i];
+        }
+        image_len = atoi(image_len_chars);
+        free(image_len_chars);
+        free(image_len_chars_couples);
+    }
+    return image_len;
 }
 
 int pv_analyze_raw_image(pv_analyzer *analyzer, const char *image, int width, int height, pv_result_type result_type, const char *data) {

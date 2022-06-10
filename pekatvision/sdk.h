@@ -55,6 +55,12 @@ PEKAT_VISION_SDK_API pv_analyzer *pv_create_remote_analyzer(const char *host, in
 PEKAT_VISION_SDK_API pv_analyzer *pv_clone_analyzer(pv_analyzer *orig);
 
 /**
+ * Set whether context should be sent in request body. Context is sent in body by default.
+ */
+PEKAT_VISION_SDK_API void pv_set_context_in_body(pv_analyzer *, unsigned char context_in_body);
+
+
+/**
  * Analyze image. Passed data are used only during the call. Returns zero on success, one of PVR_xxx error codes (negative),
  * or HTTP status code (positive) on error. On success, use on of pv_get_result_xxx() functions to obtain result data. Note
  * that next call to this function will invalidate the result so you need to make a copy before next call.
