@@ -1,10 +1,14 @@
-/* PEKAT VISION api                                                    */
-/*                                                                     */
-/* A .NET module for communication with PEKAT VISION 3.10.2 and higher */
-/*                                                                     */
-/* Author: developers@pekatvision.com                                  */
-/* Date:   7 May 2020                                                  */
-/* Web:    https://github.com/pekat-vision                             */
+/**
+ * @brief 
+ * PEKAT VISION api
+ * 
+ * A C/C++ library for communication with PEKAT VISION 3.10.2 and higher
+ * 
+ * Author: developers@pekatvision.com
+ * Date:   30 August 2022
+ * Web:    https://github.com/pekat-vision
+ */
+
 
 #ifndef PEKAT_VISION_SDK
 #define PEKAT_VISION_SDK
@@ -65,14 +69,14 @@ PEKAT_VISION_SDK_API void pv_set_context_in_body(pv_analyzer *, unsigned char co
  * or HTTP status code (positive) on error. On success, use on of pv_get_result_xxx() functions to obtain result data. Note
  * that next call to this function will invalidate the result so you need to make a copy before next call.
  */
-PEKAT_VISION_SDK_API int pv_analyze_image(pv_analyzer *, const char *image, int len, pv_result_type result_type, const char *data);
+PEKAT_VISION_SDK_API int pv_analyze_image(pv_analyzer *, const char *image, int len, pv_result_type result_type, const char *data, double timeout);
 
 /**
  * Analyze raw image. Passed data are used only during the call. Returns zero on success, one of PVR_xxx error codes (negative),
  * or HTTP status code (positive) on error. On success, use on of pv_get_result_xxx() functions to obtain result data. Note
  * that next call to this function will invalidate the result so you need to make a copy before next call.
  */
-PEKAT_VISION_SDK_API int pv_analyze_raw_image(pv_analyzer *, const char *image, int width, int height, pv_result_type result_type, const char *data);
+PEKAT_VISION_SDK_API int pv_analyze_raw_image(pv_analyzer *, const char *image, int width, int height, pv_result_type result_type, const char *data, double timeout);
 
 /**
  * Get result image data. Returned pointer is valid until next call of pv_analyze_image() or destruction of analyzer.

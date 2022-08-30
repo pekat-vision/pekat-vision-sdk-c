@@ -1,10 +1,13 @@
-/* PEKAT VISION api                                                    */
-/*                                                                     */
-/* A .NET module for communication with PEKAT VISION 3.10.2 and higher */
-/*                                                                     */
-/* Author: developers@pekatvision.com                                  */
-/* Date:   19 May 2022                                                 */
-/* Web:    https://github.com/pekat-vision                             */
+/**
+ * @brief 
+ * PEKAT VISION api
+ * 
+ * A C/C++ library for communication with PEKAT VISION 3.10.2 and higher
+ * 
+ * Author: developers@pekatvision.com
+ * Date:   30 August 2022
+ * Web:    https://github.com/pekat-vision
+ */
 
 #include "sdk.h"
 #include <Windows.h>
@@ -444,10 +447,11 @@ static wchar_t* response_types[] = { L"context", L"annotated_image", L"heatmap" 
 
 
 
-int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_result_type result_type, const char* data, const wchar_t* _path, const wchar_t* dim) {
+int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_result_type result_type, const char* data, const wchar_t* _path, const wchar_t* dim, double timeout) {
     HINTERNET hRequest = 0;
     wchar_t* path = NULL;
     int error = 0;
+    long timeout_ms = (long) (timeout * 1000);
 
     /* cleanup first */
     analyzer->response_size = 0;
@@ -503,7 +507,14 @@ int pv_analyze_image_impl(pv_analyzer* analyzer, const char* image, int len, pv_
     hRequest = WinHttpOpenRequest(analyzer->hConnect, L"POST", path, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0);
     if (!hRequest)
         goto error;
+    if (!WinHttpSetOption(hRequest, WINHTTP_OPTION_SEND_TIMEOUT, (LPVOID)timeout_ms, sizeof(timeout_ms)))
+        goto error;
+    clock_t t0 = clock();
     if (!WinHttpSendRequest(hRequest, L"Content-Type: application/octet-stream", -1, (LPVOID)image, len, len, 0))
+        goto error;
+    clock_t td = clock() - t0;
+    long timeout_remain_ms = (long) (1000 * (td / CLOCKS_PER_SEC));
+    if (!WinHttpSetOption(hRequest, WINHTTP_OPTION_RECEIVE_RESPONSE_TIMEOUT, (LPVOID)timeout_remain_ms, sizeof(timeout_remain_ms)))
         goto error;
     if (!WinHttpReceiveResponse(hRequest, NULL))
         goto error;
@@ -656,14 +667,14 @@ int get_image_len(HINTERNET hRequest) {
     return image_len;
 }
 
-int pv_analyze_raw_image(pv_analyzer *analyzer, const char *image, int width, int height, pv_result_type result_type, const char *data) {
+int pv_analyze_raw_image(pv_analyzer *analyzer, const char *image, int width, int height, pv_result_type result_type, const char *data, double timeout) {
     wchar_t dim[50];
     swprintf_s(dim, sizeof(dim) / sizeof(wchar_t), L"&width=%d&height=%d", width, height);
-    return pv_analyze_image_impl(analyzer, image, width * height * 3, result_type, data, L"/analyze_raw_image", dim);
+    return pv_analyze_image_impl(analyzer, image, width * height * 3, result_type, data, L"/analyze_raw_image", dim, timeout);
 }
 
-int pv_analyze_image(pv_analyzer *analyzer, const char *image, int len, pv_result_type result_type, const char *data) {
-    return pv_analyze_image_impl(analyzer, image, len, result_type, data, L"/analyze_image", NULL);
+int pv_analyze_image(pv_analyzer *analyzer, const char *image, int len, pv_result_type result_type, const char *data, double timeout) {
+    return pv_analyze_image_impl(analyzer, image, len, result_type, data, L"/analyze_image", NULL, timeout);
 }
 
 char* pv_get_result_data(pv_analyzer* analyzer) {

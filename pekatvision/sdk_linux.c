@@ -1,10 +1,13 @@
-/* PEKAT VISION api                                                    */
-/*                                                                     */
-/* A .NET module for communication with PEKAT VISION 3.10.2 and higher */
-/*                                                                     */
-/* Author: developers@pekatvision.com                                  */
-/* Date:   19 May 2022                                                 */
-/* Web:    https://github.com/pekat-vision                             */
+/**
+ * @brief 
+ * PEKAT VISION api
+ * 
+ * A C/C++ library for communication with PEKAT VISION 3.10.2 and higher
+ * 
+ * Author: developers@pekatvision.com
+ * Date:   30 August 2022
+ * Web:    https://github.com/pekat-vision
+ */
 
 #include <curl/curl.h>
 
@@ -249,7 +252,8 @@ static int find_port() {
 pv_analyzer *pv_create_local_analyzer(const char *dist_path, const char *project_path, const char *api_key, char *const argv[]) {
     char *exe, port_str[6], stop[20];
     const char **args;
-    int port, stop_key, argc;
+    int16_t port;
+    int stop_key, argc;
     pid_t pid;
     pv_analyzer *analyzer;
 
@@ -257,7 +261,7 @@ pv_analyzer *pv_create_local_analyzer(const char *dist_path, const char *project
     port = find_port();
     if (port == -1)
         return NULL;
-    sprintf(port_str, "%d", port);
+    sprintf(port_str, "%hd", port);
 
     /* generate stop key */
     srand((unsigned int)time(NULL));
@@ -521,11 +525,12 @@ static size_t header_callback(char *buffer, size_t size, size_t nitems, void *us
 /* must be in sync with response_type enum */
 static char *response_types[] = { "response_type=context", "response_type=annotated_image", "response_type=heatmap" };
 
-static int pv_analyze_image_impl(pv_analyzer *analyzer, const char *image, int len, pv_result_type result_type, const char *data, const char *path, const char *width, const char *height) {
+static int pv_analyze_image_impl(pv_analyzer *analyzer, const char *image, int len, pv_result_type result_type, const char *data, const char *path, const char *width, const char *height, double timeout) {
     CURLcode res;
     CURLUcode resu;
     struct curl_slist *headers;
     long status;
+    long timeout_ms = (long) (timeout * 1000);
 
     analyzer->curl_code = CURLE_OK;
     analyzer->curlu_code = CURLUE_OK;
@@ -590,6 +595,9 @@ static int pv_analyze_image_impl(pv_analyzer *analyzer, const char *image, int l
     if (res)
         goto failed_curl;
     res = curl_easy_setopt(analyzer->curl, CURLOPT_POSTFIELDSIZE, (long)len);
+    if (res)
+        goto failed_curl;
+    res = curl_easy_setopt(analyzer->curl, CURLOPT_TIMEOUT_MS, timeout_ms);
     if (res)
         goto failed_curl;
     analyzer->request_data = image;
@@ -680,16 +688,16 @@ failed_url:
     return PVR_CURLU;
 }
 
-int pv_analyze_raw_image(pv_analyzer *analyzer, const char *image, int width, int height, pv_result_type result_type, const char *data) {
+int pv_analyze_raw_image(pv_analyzer *analyzer, const char *image, int width, int height, pv_result_type result_type, const char *data, double timeout) {
     char w[32];
     char h[32];
     sprintf(w, "width=%d", width);
     sprintf(h, "height=%d", height);
-    return pv_analyze_image_impl(analyzer, image, width * height * 3, result_type, data, "/analyze_raw_image", w, h);
+    return pv_analyze_image_impl(analyzer, image, width * height * 3, result_type, data, "/analyze_raw_image", w, h, timeout);
 }
 
-int pv_analyze_image(pv_analyzer *analyzer, const char *image, int len, pv_result_type result_type, const char *data) {
-    return pv_analyze_image_impl(analyzer, image, len, result_type, data, "/analyze_image", NULL, NULL);
+int pv_analyze_image(pv_analyzer *analyzer, const char *image, int len, pv_result_type result_type, const char *data, double timeout) {
+    return pv_analyze_image_impl(analyzer, image, len, result_type, data, "/analyze_image", NULL, NULL, timeout);
 }
 
 char *pv_get_result_data(pv_analyzer *analyzer) {
