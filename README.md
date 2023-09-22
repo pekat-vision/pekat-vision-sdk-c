@@ -1,11 +1,15 @@
 # PEKAT VISION SDK
 
-A simple ANSI C library for communication with PEKAT VISION for Linux and Windows.
+A simple C library for communication with PEKAT VISION for Linux and Windows.
 
 ## Requirements
 
-* On Linux libCURL at least 7.62.0
 * PEKAT VISION 3.10.2 or higher
+
+#### LINUX
+
+* GLIBC >= 2.19
+* libCURL >= 7.62.0
 
 ## Installation
 
@@ -17,10 +21,12 @@ files, one for each platform.
 Just compile the sources either as part of your sources or create an external library. You can use your favorite build tool like CMake or Autoconf or
 just use `curl-config` to get correct options for compilation with CURL.
 
+Compiles with C99 standard or higher.
+
 For example:
 
 ```
-gcc `curl-config --cflags` pekatvision/sdk_linux.c test.c -o test `curl-config --libs`
+gcc -std=c99 `curl-config --cflags` pekatvision/sdk_linux.c test.c -o test `curl-config --libs`
 ```
 
 ### Windows (sdk_windows.c)
@@ -36,7 +42,7 @@ Create local analyzer (will start Pekat Vision server in background):
 ```c
 #include "pekatvision/sdk.h"
 
-pv_analyzer *analyzer = pv_create_local_analyzer("/path/to/server/installation", "/path/to/project", "optional api key", NULL);
+pv_analyzer *analyzer = pv_create_local_analyzer("/path/to/server/installation", "/path/to/project", "optional api key", 0 /* port */, NULL);
 if (analyzer == NULL) {
     /* failed */
 }
@@ -95,9 +101,9 @@ Note however, that you will need to set up CURL for threading manually before us
 
 ```c
 /* create local analyzer */
-pv_analyzer *analyzer_camera_1 = pv_create_local_analyzer("/pekat_vision", "/home/peter/PekatVisionProjects/camera_1", "", NULL);
-pv_analyzer *analyzer_camera_2 = pv_create_local_analyzer("/pekat_vision", "/home/peter/PekatVisionProjects/camera_2", "", NULL);
-pv_analyzer *analyzer_camera_3 = pv_create_local_analyzer("/pekat_vision", "/home/peter/PekatVisionProjects/camera_3", "", NULL);
+pv_analyzer *analyzer_camera_1 = pv_create_local_analyzer("/pekat_vision", "/home/peter/PekatVisionProjects/camera_1", "", 0, NULL);
+pv_analyzer *analyzer_camera_2 = pv_create_local_analyzer("/pekat_vision", "/home/peter/PekatVisionProjects/camera_2", "", 0, NULL);
+pv_analyzer *analyzer_camera_3 = pv_create_local_analyzer("/pekat_vision", "/home/peter/PekatVisionProjects/camera_3", "", 0, NULL);
 
 /* analyze - loop */
 pv_analyze_image(analyzer_camera_1, buffer, len, PVRT_CONTEXT, NULL);
