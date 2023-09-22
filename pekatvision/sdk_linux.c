@@ -17,7 +17,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
-#include <string.h>
 
 #if !CURL_AT_LEAST_VERSION(7, 62, 0)
 #error "libcurl at least 7.62.0 is required"
