@@ -1,9 +1,9 @@
 /* PEKAT VISION api                                                    */
 /*                                                                     */
-/* A .NET module for communication with PEKAT VISION 3.10.2 and higher */
+/* A C library for communication with PEKAT VISION 3.10.2 and higher   */
 /*                                                                     */
 /* Author: developers@pekatvision.com                                  */
-/* Date:   7 May 2020                                                  */
+/* Date:   22 Sep 2023                                                 */
 /* Web:    https://github.com/pekat-vision                             */
 
 #ifndef PEKAT_VISION_SDK
@@ -39,10 +39,11 @@ typedef enum {
 #define PVR_WRONG_MBS -5
 
 /**
- * Create new analyzer by running the server in background. Pass path to server and project, optionally API key and other parameters.
+ * Create new analyzer by running the server in background. Pass path to server and project, optionally API key, port and other parameters.
  * All strings are no longer used after call so you are free to modify/remove them. Returns created analyzer or NULL on error.
+ * If port is <= 0, free port will be found automatically.
  */
-PEKAT_VISION_SDK_API pv_analyzer *pv_create_local_analyzer(const char *dist_path, const char *project_path, const char *api_key, char *const argv[]);
+PEKAT_VISION_SDK_API pv_analyzer *pv_create_local_analyzer(const char *dist_path, const char *project_path, const char *api_key, int port, char *const argv[]);
 /**
  * Create new analyzer using already running server. All strings are no longer used after call. Returns analyzer or NULL on error.
  */
@@ -90,9 +91,16 @@ PEKAT_VISION_SDK_API int pv_get_result_data_size(pv_analyzer *analyzer);
 PEKAT_VISION_SDK_API char *pv_get_result_context(pv_analyzer *analyzer);
 
 /**
+ * Get port of analyzer.
+*/
+PEKAT_VISION_SDK_API int pv_get_port(pv_analyzer *);
+
+/**
  * Destroy analyzer. In case of local one, this call will stop the background server.
  */
 PEKAT_VISION_SDK_API void pv_free_analyzer(pv_analyzer *);
+
+
 
 #ifdef LIBCURL_VERSION
 /* include these only when user has curl - avoid curl headers when error codes are not needed */

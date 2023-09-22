@@ -1,9 +1,9 @@
 /* PEKAT VISION api                                                    */
 /*                                                                     */
-/* A .NET module for communication with PEKAT VISION 3.10.2 and higher */
+/* A C library for communication with PEKAT VISION 3.10.2 and higher   */
 /*                                                                     */
 /* Author: developers@pekatvision.com                                  */
-/* Date:   19 May 2022                                                 */
+/* Date:   22 Sep 2023                                                 */
 /* Web:    https://github.com/pekat-vision                             */
 
 #include <curl/curl.h>
@@ -16,6 +16,7 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <signal.h>
 
 #if !CURL_AT_LEAST_VERSION(7, 62, 0)
 #error "libcurl at least 7.62.0 is required"
@@ -28,6 +29,7 @@
 #define PATH_SEP "/"
 #define EXE_EXT ""
 #endif
+
 
 #define SERVER_PATH (PATH_SEP "pekat_vision" PATH_SEP "pekat_vision" EXE_EXT)
 
@@ -44,6 +46,7 @@
 #define TO_PORT 30000
 
 struct _pv_analyzer {
+    int port;
     /* running process or 0 if none */
     pid_t pid;
     int stop_key;
@@ -140,6 +143,7 @@ static pv_analyzer *alloc_analyzer(const char *host, int port, const char *api_k
     if (!analyzer)
         return NULL;
     analyzer->pid = 0;
+    analyzer->port = port;
     analyzer->api_key = NULL;
     analyzer->url = curl_url();
     analyzer->curl = curl_easy_init();
@@ -246,15 +250,16 @@ static int find_port() {
     return -1;
 }
 
-pv_analyzer *pv_create_local_analyzer(const char *dist_path, const char *project_path, const char *api_key, char *const argv[]) {
+pv_analyzer *pv_create_local_analyzer(const char *dist_path, const char *project_path, const char *api_key, int port, char *const argv[]) {
     char *exe, port_str[6], stop[20];
     const char **args;
-    int port, stop_key, argc;
+    int stop_key, argc;
     pid_t pid;
     pv_analyzer *analyzer;
 
     /* detect port */
-    port = find_port();
+    if (port <= 0) 
+        port = find_port();
     if (port == -1)
         return NULL;
     sprintf(port_str, "%d", port);
@@ -702,6 +707,10 @@ int pv_get_result_data_size(pv_analyzer *analyzer) {
 
 char *pv_get_result_context(pv_analyzer *analyzer) {
     return analyzer->response_context;
+}
+
+int pv_get_port(pv_analyzer *analyzer) {
+    return analyzer->port;
 }
 
 CURLcode pv_get_curl_code(pv_analyzer *analyzer) {

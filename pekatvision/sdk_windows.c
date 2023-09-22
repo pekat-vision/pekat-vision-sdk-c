@@ -1,9 +1,9 @@
 /* PEKAT VISION api                                                    */
 /*                                                                     */
-/* A .NET module for communication with PEKAT VISION 3.10.2 and higher */
+/* A C library for communication with PEKAT VISION 3.10.2 and higher   */
 /*                                                                     */
 /* Author: developers@pekatvision.com                                  */
-/* Date:   19 May 2022                                                 */
+/* Date:   22 Sep 2023                                                 */
 /* Web:    https://github.com/pekat-vision                             */
 
 #include "sdk.h"
@@ -269,9 +269,10 @@ static int find_port() {
     return -1;
 }
 
-pv_analyzer* pv_create_local_analyzer(const char* dist_path, const char* project_path, const char* api_key, char* const argv[]) {
-    /* detect port */
-    int port = find_port();
+pv_analyzer* pv_create_local_analyzer(const char* dist_path, const char* project_path, const char* api_key, int port, char* const argv[]) {
+    if (port <= 0)
+        /* detect port */
+        port = find_port();
     if (port == -1)
         return NULL;
 
@@ -676,4 +677,8 @@ int pv_get_result_data_size(pv_analyzer* analyzer) {
 
 char* pv_get_result_context(pv_analyzer* analyzer) {
     return analyzer->response_context;
+}
+
+int pv_get_port(pv_analyzer *analyzer) {
+    return analyzer->port;
 }
